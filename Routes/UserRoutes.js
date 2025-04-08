@@ -266,11 +266,12 @@ router.post("/getUser", async (req, res) => {
     }
 })
 
-router.post("/report", async (req, res) => {
+router.post("/report",Auth, async (req, res) => {
     try {
         const {reportedBy,reportedReason,reportedTo} = req.body;
-        const user = await User.findById(playerId);
-        if (!user) res.status(400).send("Invalid User Id");
+        const user = await User.findById(reportedTo);
+        if(reportedBy!=req.userId) return res.status(400).send("Access Denied");
+        if (!user) return res.status(400).send("Invalid User Id");
         user.reports += 1;
         await user.save();
         
