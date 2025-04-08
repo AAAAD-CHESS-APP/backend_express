@@ -82,18 +82,17 @@ router.get("/unban/:playerId",AdminAuth, async (req, res) => {
     }
 })
 
-router.get("/allReportedPlayers",AdminAuth,async(req,res)=>{
-    try{
+router.get("/allReportedPlayers", AdminAuth, async (req, res) => {
+    try {
         const adminId = req.adminId;
         const admin = await Admin.findById(adminId);
-        if(!admin) return res.status(400).send("Unauthorised Access");
-
-        const users = await User.find({});
-        res.status(200).send(users).sort({ reports: -1 });
-    }catch (err) {
+        if (!admin) return res.status(400).send("Unauthorised Access");
+        const users = await User.find({}).sort({ reports: -1 });
+        res.status(200).send(users);
+    } catch (err) {
         res.status(400).send(err);
     }
-})
+});
 
 router.get("/reports/:playerId",AdminAuth,async(req,res)=>{
     try{
@@ -122,10 +121,25 @@ router.get("/totalReports",AdminAuth,async(req,res)=>{
     res.status(200).send({ totalReports: reports.length });
 })
 
-
 router.get("/recentGames",AdminAuth,async(req,res)=>{
     const games = await Game.find({}).sort({startTime:-1});
     res.status(200).send(games);
 })
+
+router.get("/reports", AdminAuth, async (req, res) => {
+  try {
+    const adminId = req.adminId;
+    const admin = await Admin.findById(adminId);
+    if (!admin) return res.status(400).send("Unauthorised Access");
+    
+    const reports = await Report.find({})
+      .populate('reportedBy', 'name email')
+      .populate('reportedTo', 'name email');
+    
+    res.status(200).send(reports);
+  } catch (err) {
+    res.status(400).send(err);
+  }
+});
 
 module.exports = router;
