@@ -7,4 +7,4 @@ const AdminPasskey = (req,res,next)=>{
     else req.ValidPasskey = true;
     next();
 }
-modules.export = AdminPasskey;
+module.exports = AdminPasskey;

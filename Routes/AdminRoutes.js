@@ -1,10 +1,9 @@
 const Admin = require("../database/Models/Admin");
-const AdminPasskey = require("../")
+const AdminPasskey = require("../middleware/AdminPasskey")
 const express = require("express");
 const router = express.Router();
 const User = require("../database/Models/User");
 const AdminAuth = require("../middleware/AdminAuth");
-const Admin = require("../database/Models/Admin");
 const Report = require("../database/Models/Reports");
 const Game = require("../database/Models/Game");
 
