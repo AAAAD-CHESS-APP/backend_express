@@ -33,6 +33,15 @@ router.post('/login', async (req, res) => {
 router.post('/signup', async (req, res) => {
     const { email, password, name } = req.body;
     try {
+        const exist = await User.findOne({
+            email : email
+
+        })
+        console.log(exist)
+        if(exist && !exist.isVerified) {
+            const delc = await User.deleteOne({email : email});
+            console.log(delc)
+        }
         const user = new User({ email, password, name });
         await user.save();
         const token = jwt.sign({ user_id: user._id }, process.env.JWT_TOKEN_SECRET, { expiresIn: '30d' });
@@ -78,17 +87,21 @@ router.post('/resetPasswordToken', async (req, res) => {
         let mailOptions = {
             from: "aichess.dev@gmail.com",
             to: email,
-            subject: 'Password Reset Token',
-            text: `
-            Token is valid for only 5 minutes ${token}
+            subject: 'Password Reset Link',
+            text: `You requested to reset your password. Click the link below to proceed. This link is valid for 5 minutes:\n\nhttp://localhost:5173/update-password/${token}`,
+            html: `
+              <p>You requested to reset your password.</p>
+              <p>This link is valid for <strong>5 minutes</strong>:</p>
+              <a href="http://localhost:5173/update-password/${token}">Reset Password</a>
             `,
-        };
+          };
+          
 
         transporter.sendMail(mailOptions, (error, info) => {
             if (error) {
                 return res.status(400).send(error);
             }
-            res.status(200).send("check mail box");
+            res.status(200).send({ message: "Open Mail" });
         });
 
     } catch (e) {
@@ -99,18 +112,34 @@ router.post('/resetPasswordToken', async (req, res) => {
 router.patch("/resetPassword/:token", async (req, res) => {
     try {
         const { token } = req.params;
-        const { password } = req.body;
+        const { password, confirmPass } = req.body;
+
+       if (confirmPass !== password) {
+            return res.status(400).send("Passwords don't match");
+        }
+
+        
         const decoded = jwt.verify(token, process.env.JWT_TOKEN_SECRET);
-        if (!decoded) res.status(400).send({ message: "Invalid Token" });
+        if (!decoded || !decoded.user_id) {
+            return res.status(400).send({ message: "Invalid or expired token" });
+        }
+
+    
         const user = await User.findById(decoded.user_id);
-        if (!user) return res.status(400).send({ message: "Invalid Token" });
+        if (!user) {
+            return res.status(400).send({ message: "User not found" });
+        }
+
+        
         user.password = password;
         await user.save();
-        res.status(200).send("success");
+
+        return res.status(200).send("success");
     } catch (err) {
-        res.status(400).send(err);
+        console.error(err);
+        return res.status(500).send(err);
     }
-})
+});
 
 router.get('/userGames/:id', async (req, res) => {
     try {
@@ -189,41 +218,63 @@ router.put("/updateUser/:id", Auth, async (req, res) => {
     }
 })
 
-router.get("/verifyToken/:id", async (req, res) => {
+router.post("/verifyToken", Auth, async (req, res) => {
     try {
-        const { id } = req.params;
-        const user = await User.findById(id);
-        if (!user) return res.status(400).send({ message: "Invalid user ID" });
-        const token = jwt.sign({ user_id: user._id, email: user.email }, process.env.JWT_TOKEN_SECRET, { expiresIn: "5m" });
-        let transporter = nodemailer.createTransport({
-            host: 'smtp.gmail.com',
-            port: 465,
-            secure: true,
-            auth: {
-                user: "aichess.dev@gmail.com",
-                pass: process.env.NODEMAIL_APP_PASSWORD,
-            },
-        });
-
-        let mailOptions = {
-            from: "aichess.dev@gmail.com",
-            to: user.email,
-            subject: 'Email Verification Link',
-            text: `
-            Token is valid for only 5 minutes ${token}
-            `,
-        };
-
-        transporter.sendMail(mailOptions, (error, info) => {
-            if (error) {
-                return res.status(400).send(error);
-            }
-            res.status(200).send("check mail box");
-        });
+      const id = req.userId;
+      const user = await User.findById(id);
+  
+      if (!user) {
+        return res.status(400).send({ message: "Invalid user ID" });
+      }
+  
+      const token = jwt.sign(
+        { user_id: user._id, email: user.email },
+        process.env.JWT_TOKEN_SECRET,
+        { expiresIn: "5m" }
+      );
+  
+      const transporter = nodemailer.createTransport({
+        host: 'smtp.gmail.com',
+        port: 465,
+        secure: true,
+        auth: {
+          user: "aichess.dev@gmail.com",
+          pass: process.env.NODEMAIL_APP_PASSWORD,
+        },
+      });
+  
+      const mailOptions = {
+        from: '"AI Chess" <aichess.dev@gmail.com>',
+        to: user.email,
+        subject: 'Email Verification Link',
+        html: `
+  <h3>Email Verification</h3>
+  <p>Click the button below to verify your email:</p>
+  <a 
+    href="http://localhost:5173/verify-email/${token}" 
+    style="display: inline-block; margin: 10px 0; padding: 10px 20px; background-color: #000814; color: #ffffff; text-decoration: none; border-radius: 5px;"
+  >
+    Verify Email
+  </a>
+  <p>If the button doesn't work, copy and paste this URL into your browser:</p>
+  <p>http://localhost:5173/verify-email/${token}</p>
+  <p><b>Note:</b> This link is valid for only 5 minutes.</p>
+`,
+      };
+  
+      transporter.sendMail(mailOptions, (error, info) => {
+        if (error) {
+          console.error("Error sending mail:", error);
+          return res.status(400).send({ message: "Error sending email", error });
+        }
+        res.status(200).send({ message: "Verification email sent. Check your inbox." });
+      });
+  
     } catch (err) {
-        res.status(400).send(err.message);
+      console.error("Server error:", err.message);
+      res.status(400).send({ message: err.message });
     }
-})
+  });
 
 router.get("/verify/:token", async (req, res) => {
     try {
