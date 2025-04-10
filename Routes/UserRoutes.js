@@ -65,6 +65,8 @@ router.post('/verifytokenAndGetUsername', async (req, res) => {
             return res.status(404).send({ error: 'Invalid or expired token' });
         }
 
+        if(!user.isVerified) return res.status(400).send({error : "Your Email is not verfied !"})
+
         res.status(200).send({ user: user.name });
     } catch (e) {
         res.status(400).send({ error: 'Invalid or expired token' });
