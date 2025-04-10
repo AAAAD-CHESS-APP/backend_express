@@ -15,6 +15,9 @@ router.post('/login', async (req, res) => {
         if (!user) {
             return res.status(400).send({ error: "Invalid Credentials" });
         }
+        
+        if(!user.isVerified) return res.status(300).send({message : "Please verify yourself"});
+
         const isPasswordMatch = await bcrypt.compare(password, user.password);
         if (!isPasswordMatch) {
             return res.status(400).send({ error: "Invalid Credentials" });
@@ -73,7 +76,7 @@ router.post('/resetPasswordToken', async (req, res) => {
         const { email } = req.body;
         const user = await User.findOne({ email: email });
         if (!user) return res.status(400).send({ error: 'Email is not registered with us' });
-        const token = jwt.sign({ user_id: user._id, email: user.email }, process.env.JWT_TOKEN_SECRET, { expiresIn: "5m" });
+        const token = jwt.sign({ user_id: user._id, email: user.email }, process.env.JWT_RESET_PASSWORD_SECRET, { expiresIn: "5m" });
         let transporter = nodemailer.createTransport({
             host: 'smtp.gmail.com',
             port: 465,
@@ -119,7 +122,7 @@ router.patch("/resetPassword/:token", async (req, res) => {
         }
 
         
-        const decoded = jwt.verify(token, process.env.JWT_TOKEN_SECRET);
+        const decoded = jwt.verify(token, process.env.JWT_RESET_PASSWORD_SECRET);
         if (!decoded || !decoded.user_id) {
             return res.status(400).send({ message: "Invalid or expired token" });
         }
@@ -229,7 +232,7 @@ router.post("/verifyToken", Auth, async (req, res) => {
   
       const token = jwt.sign(
         { user_id: user._id, email: user.email },
-        process.env.JWT_TOKEN_SECRET,
+        process.env.JWT_TOKEN_SIGNUP_MAIL_SECRET,
         { expiresIn: "5m" }
       );
   
@@ -279,7 +282,7 @@ router.post("/verifyToken", Auth, async (req, res) => {
 router.get("/verify/:token", async (req, res) => {
     try {
         const { token } = req.params;
-        const decoded = jwt.verify(token, process.env.JWT_TOKEN_SECRET);
+        const decoded = jwt.verify(token, process.env.JWT_TOKEN_SIGNUP_MAIL_SECRET);
         if (!decoded) res.status(400).send({ message: "Invalid Token" });
         const user = await User.findById(decoded.user_id);
         if (!user) return res.status(400).send({ message: "Invalid Token" });
