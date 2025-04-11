@@ -16,7 +16,9 @@ router.post('/login', async (req, res) => {
             return res.status(400).send({ error: "Invalid Credentials" });
         }
         
-        if(!user.isVerified) return res.status(300).send({message : "Please verify yourself"});
+        if (!user.isVerified) {
+            return res.status(401).json({ redirect: "http://localhost:5173/verify" });
+         }
 
         const isPasswordMatch = await bcrypt.compare(password, user.password);
         if (!isPasswordMatch) {
