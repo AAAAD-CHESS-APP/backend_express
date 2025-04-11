@@ -6,7 +6,7 @@ const router = express.Router();
 router.get("/game/:id", async (req, res) => {
     try {
         const { id } = req.params;
-        const game = await Game.findById(id);
+        const game = await Game.findOne({ roomName: id });
         if (!game) return res.status(400).send({ message: "Invalid game Id" });
         res.status(200).send(game);
     } catch (err) {

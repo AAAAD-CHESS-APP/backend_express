@@ -148,9 +148,9 @@ router.patch("/resetPassword/:token", async (req, res) => {
     }
 });
 
-router.get('/userGames/:id', async (req, res) => {
+router.get('/userGames',Auth, async (req, res) => {
     try {
-        const { id } = req.params;
+        const id = user.id;
         const user = await User.findById(id);
         if (!user) return res.status(400).send({ message: "Invalid user Id" });
         const whitegames = await Game.find({ white: user._id });

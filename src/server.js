@@ -85,7 +85,9 @@ io.on('connection', async (socket) => {
             black: Player2?._id,
             whiteName: Player1?.name,
             blackName: Player2?.name,
-            roomName: roomName
+            roomName: roomName,
+            prevWhiteElo : Player1?.elo,
+            prevBlackElo : Player2?.elo
         })
         await game.save();
         socket.join(roomName);
@@ -119,70 +121,122 @@ io.on('connection', async (socket) => {
         }
     });
 
-    socket.on('game-over', async ({ roomName, result }) => {
-        const game = await Game.findOne({ roomName: roomName });
-        game.result = result;
-        console.log(result);
-        await game.save();
-        const whitePlayer = await User.findOne({ name: game.whiteName });
-        const blackPlayer = await User.findOne({ name: game.blackName });
+    socket.on('game-over', async ({ roomName, result }, callback) => {
+        try {
+            const game = await Game.findOne({ roomName });
+            if (!game) throw new Error(`Game not found for room: ${roomName}`);
+    
+            game.result = result;
+    
+            const whitePlayer = await User.findOne({ name: game.whiteName });
+            const blackPlayer = await User.findOne({ name: game.blackName });
+    
+            if (!whitePlayer || !blackPlayer) {
+                throw new Error("Players Not found");
+            }
+    
+            const expectedScoreA = elo.getExpected(whitePlayer.elo, blackPlayer.elo);
+            const expectedScoreB = elo.getExpected(blackPlayer.elo, whitePlayer.elo);
+    
+            const resultLower = result.toLowerCase();
+    
+            if (resultLower.includes("white")) {
+                whitePlayer.wins += 1;
+                whitePlayer.elo = elo.updateRating(expectedScoreA, 1, whitePlayer.elo);
+                game.UpdatedWhiteElo = whitePlayer.elo;
+    
+                blackPlayer.loses += 1;
+                blackPlayer.elo = elo.updateRating(expectedScoreB, 0, blackPlayer.elo);
+                game.UpdatedBlackElo = blackPlayer.elo;
+            } else if (resultLower.includes("black")) {
+                whitePlayer.loses += 1;
+                whitePlayer.elo = elo.updateRating(expectedScoreA, 0, whitePlayer.elo);
+                game.UpdatedWhiteElo = whitePlayer.elo;
+    
+                blackPlayer.wins += 1;
+                blackPlayer.elo = elo.updateRating(expectedScoreB, 1, blackPlayer.elo);
+                game.UpdatedBlackElo = blackPlayer.elo;
+            } else {
+                whitePlayer.draws = (whitePlayer.draws || 0) + 1;
+                blackPlayer.draws = (blackPlayer.draws || 0) + 1;
+    
+                game.UpdatedWhiteElo = whitePlayer.elo;
+                game.UpdatedBlackElo = blackPlayer.elo;
+            }
+    
+            whitePlayer.gamesHistory?.push(game._id);
+            blackPlayer.gamesHistory?.push(game._id);
+    
+            await Promise.all([
+                game.save(),
+                whitePlayer.save(),
+                blackPlayer.save()
+            ]);
+    
+            io.to(roomName).emit('game-end', {
+                result
+            });
 
-        const expectedScoreA = elo.getExpected(whitePlayer.elo, blackPlayer.elo);
-        const expectedScoreB = elo.getExpected(blackPlayer.elo, whitePlayer.elo);
-
-        if (result.includes("White") || result.includes("white")) {
-            whitePlayer.wins += 1;
-            whitePlayer.elo = elo.updateRating(expectedScoreA, 1, whitePlayer.elo);
-            blackPlayer.loses += 1;
-            blackPlayer.elo = elo.updateRating(expectedScoreB, 0, blackPlayer.elo);
-        } else if (result.includes("Black") || result.includes("black")) {
-            whitePlayer.loses += 1;
-            whitePlayer.elo = elo.updateRating(expectedScoreA, 0, whitePlayer.elo);
-            blackPlayer.wins += 1;
-            blackPlayer.elo = elo.updateRating(expectedScoreB, 1, blackPlayer.elo);
-        } else {
-            whitePlayer.draws += 1;
-            blackPlayer.draws += 1;
+            callback({ success: true });
+    
+        } catch (error) {
+            console.error(err);
+            callback({ success: false, error: err.message });
         }
-        io.to(roomName).emit('game-end', {
-            result: result
-        })
-
-        blackPlayer?.gamesHistory?.push(game._id);
-        whitePlayer?.gamesHistory?.push(game._id);
-        await blackPlayer.save();
-        await whitePlayer.save();
     });
 
-    socket.on('resign', async ({ roomName, user, color }) => {
-        const game = await Game.findOne({ roomName: roomName });
-        const whitePlayer = await User.findOne({ name: game.whiteName });
-        const blackPlayer = await User.findOne({ name: game.blackName });
-
-        const expectedScoreA = elo.getExpected(whitePlayer.elo, blackPlayer.elo);
-        const expectedScoreB = elo.getExpected(blackPlayer.elo, whitePlayer.elo);
-
-        game.result = `${color} resigned`;
-        io.to(roomName).emit('game-end', {
-            result: `${color} resigned !`
-        })
-        if (color == 'white' || color == 'White') {
-            blackPlayer.wins += 1;
-            blackPlayer.elo = elo.updateRating(expectedScoreB, 1, blackPlayer.elo);
-            whitePlayer.loses += 1;
-            whitePlayer.elo = elo.updateRating(expectedScoreA, 0, whitePlayer.elo);
-        } else {
-            blackPlayer.loses += 1;
-            blackPlayer.elo = elo.updateRating(expectedScoreB, 0, blackPlayer.elo);
-            whitePlayer.wins += 1;
-            whitePlayer.elo = elo.updateRating(expectedScoreA, 1, whitePlayer.elo);
+    socket.on('resign', async ({ roomName, user, color },callback) => {
+        try {
+            const game = await Game.findOne({ roomName });
+            if (!game) throw new Error(`Game not found for room: ${roomName}`);
+    
+            const whitePlayer = await User.findOne({ name: game.whiteName });
+            const blackPlayer = await User.findOne({ name: game.blackName });
+    
+            if (!whitePlayer || !blackPlayer) {
+                throw new Error(" player not found");
+            }
+    
+            const expectedScoreA = elo.getExpected(whitePlayer.elo, blackPlayer.elo);
+            const expectedScoreB = elo.getExpected(blackPlayer.elo, whitePlayer.elo);
+    
+            const resignedColor = color.toLowerCase();
+            game.result = `${resignedColor} resigned`;
+    
+            io.to(roomName).emit('game-end', {
+                result: `${resignedColor} resigned!`
+            });
+    
+            if (resignedColor === 'white') {
+                blackPlayer.wins += 1;
+                blackPlayer.elo = elo.updateRating(expectedScoreB, 1, blackPlayer.elo);
+                whitePlayer.loses += 1;
+                whitePlayer.elo = elo.updateRating(expectedScoreA, 0, whitePlayer.elo);
+            } else {
+                blackPlayer.loses += 1;
+                blackPlayer.elo = elo.updateRating(expectedScoreB, 0, blackPlayer.elo);
+                whitePlayer.wins += 1;
+                whitePlayer.elo = elo.updateRating(expectedScoreA, 1, whitePlayer.elo);
+            }
+    
+            game.UpdatedBlackElo = blackPlayer.elo;
+            game.UpdatedWhiteElo = whitePlayer.elo;
+    
+            blackPlayer.gamesHistory?.push(game._id);
+            whitePlayer.gamesHistory?.push(game._id);
+    
+            await Promise.all([
+                blackPlayer.save(),
+                whitePlayer.save(),
+                game.save()
+            ]);
+            callback({ success: true });
+    
+        } catch (err) {
+            console.error(err);
+            callback({ success: false, error: err.message });
         }
-
-        blackPlayer?.gamesHistory?.push(game._id);
-        whitePlayer?.gamesHistory?.push(game._id);
-        await blackPlayer.save();
-        await whitePlayer.save();
-    })
+    });
 
     socket.on('stop-searching', ({ userName }) => {
         const index = waitingPlayers.indexOf(userName);

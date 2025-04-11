@@ -26,7 +26,23 @@ const GameSchema = new mongoose.Schema({
     roomName: {
         type: String
     },
-    pgn: [String]
+    pgn: [String],
+    prevWhiteElo : {
+        type :Number,
+        default : 0
+    },
+    prevBlackElo :{
+        type : Number,
+        default : 0
+    },
+    UpdatedWhiteElo :{
+        type : Number,
+        default : 0
+    },
+    UpdatedBlackElo :{
+        type : Number,
+        default : 0
+    }
 })
 
 const Game = mongoose.model('Game', GameSchema);
