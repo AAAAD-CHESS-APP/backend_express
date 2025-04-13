@@ -175,7 +175,8 @@ router.get("/userGames", Auth, async (req, res) => {
       whiteName: game.whiteName,
       blackName: game.blackName,
       roomName: game.roomName,
-      startTime: game.startTime
+      startTime: game.startTime,
+      result : game.result
     }));
 
     res.status(200).send({
