@@ -163,9 +163,27 @@ router.get("/userGames", Auth, async (req, res) => {
     if (!user) return res.status(400).send({ message: "Invalid user Id" });
     const whitegames = await Game.find({ white: user._id });
     const blackgames = await Game.find({ black: user._id });
-    const merged = whitegames + blackgames;
-    res.status(200).send(merged);
+    const merged = [...whitegames, ...blackgames];
+
+    merged.sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
+
+    const games = merged.map(game => ({
+      fen: game.fen,
+      moves: game.moves,
+      white: game.white,
+      black: game.black,
+      whiteName: game.whiteName,
+      blackName: game.blackName,
+      roomName: game.roomName,
+      startTime: game.startTime
+    }));
+
+    res.status(200).send({
+      playerId : id,
+      games : games
+    });
   } catch (err) {
+    console.log(err);
     res.status(400).send(err);
   }
 });
